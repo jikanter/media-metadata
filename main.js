@@ -20,7 +20,6 @@ var App = function() {
   // the mysql table containing the schema
   this.table = 'media';
   
-  
   // 
   // the file metadata
   // table -> the mysql table containing the schema
@@ -45,7 +44,8 @@ var App = function() {
     database: this.database,
     table: this.table,
     schema: this.schema,
-    _staticRoot : this._staticRoot
+    _staticRoot : this._staticRoot,
+    _fileRoot: this._fileRoot
   };
 };
 
@@ -233,11 +233,15 @@ http.createServer(function(request, response) {
         xmpRunner.stdout.on('data', function(data) { 
           xmpData += data;
         });
-      
-     
+        // upload our XMP metadadata to our SQL server when the xmp Data returns
         xmpRunner.on('close', function(code, signal) { 
-          // upload our XMP data to our SQL server
-          console.log("xmpData: " + xmpData);
+          //console.log("xmpData: " + xmpData);
+          
+          // create the sql payload and do the postBack
+          // the url of the actual image is the file access root concatenated to the last part of the path
+          var url = app._fileRoot + f.path.slice(f.path.indexOf('/upload_'), f.path.length);
+          var payload = "metadata="+encodeURIComponent(xmpData)+'&path='+encodeURIComponent(f.path)+'&url='+encodeURIComponent(url)+'&kind='+encodeURIComponent(f.type);
+          //console.log("payload: " + payload);
           // create a http request and upload the XMP data
           var req = http.request({
             hostname: 'dev.pcontact.org',
@@ -245,13 +249,14 @@ http.createServer(function(request, response) {
             path: '/m/store',
             method: 'POST',
             headers: {
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'Content-Length': xmpData.length,
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Content-Length': payload.length
           }
         });
-        console.log("Doing SQL POST");
-        req.write("metadata="+encodeURIComponent(xmpData));
-        console.log("Finished");
+ 
+        
+        req.write(payload);
+          //console.log("Finished");
       });
     }
     });
@@ -263,23 +268,12 @@ http.createServer(function(request, response) {
   // we access this method after uploading files
   // we also do it directly to store metadata for URLs directly
   if (request.url == "/m/store" && request.method.toLowerCase() == 'post') { 
-    var query = qs.parse(request.url, true);
-    console.log("query: " + query);
-    var kind = query.kind ? query.kind : 'NULL';
-    var path = query.path ? query.path : 'NULL';
+    // query does not mean anything for post
     var created_at = Date.now();
     // TODO: timestamp!
-    var updated_at = 'NULL'; 
-    // if the path is passed, but the url is not, calculate the url from the path
-    if ((path && path != 'NULL') && (typeof query.u == "undefined")) { 
-      var url = app._staticRoot + path; 
-    }
-    else { 
-      // otherwise use the url passed, or null
-      var url = query.u || 'NULL';
-    }
-    var tags = query.tags || 'NULL';
+    var updated_at = 'NULL';
     // see http://stackoverflow.com/questions/4295782/how-do-you-extract-post-data-in-node-js
+    var tags = 'NULL';
     var body = '';
     request.on('data', function(data) { 
       body += data;
@@ -288,14 +282,18 @@ http.createServer(function(request, response) {
         request.connection.destroy();
       }
     });
+    
     request.on('end', function() { 
       // TODO: run the SQL query here..
       var post = qs.parse(body);
-      //console.log(post);
+      //console.log(util.inspect(post));
       var xmpData = app.client.escape(post['metadata']);
+      var path = app.client.escape(post['path']);
+      var url = app.client.escape(post['url']);
+      var kind = app.client.escape(post['kind']);
       var fieldData = ['NULL', kind, url, path, '"'+xmpData+'"', created_at, updated_at, xmpData.length, tags];
       var sql = app.DataAccess.addOne(fieldData);
-      console.log(sql);
+      //console.log(sql);
       app.client.query(sql, function(err, rows) { 
         if (err) { console.log(err); }
         else { 
@@ -329,10 +327,11 @@ http.createServer(function(request, response) {
     });
   };
   
-  response.writeHead(200, {
-    'Content-Type': "application/json; charset=utf-8",
+  response.writeHead(302, {
+    'Location': 'http://dev.pcontact.org/XMPEditor/xmpedit.html?finished=true'
   });
   
-  response.end(JSON.stringify({'response': 'OK'}));
+  response.end();
+  //response.end(JSON.stringify({'response': 'OK'}));
   
 }).listen(8127);
