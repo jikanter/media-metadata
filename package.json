@@ -1,0 +1,22 @@
+{
+  "name": "MediaEditorServer",
+  "version": "0.1.0",
+  "description": "a simple image metadata uploader and editor. Allows for search engine optimization of image files.",
+  "main": "main.js",
+  "dependencies": {
+    "formidable": "^1.0.17",
+    "mysql": "^2.6.1",
+    "sha1": "^1.1.0",
+    "express": "^4.12.3"
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "media",
+    "metadata"
+  ],
+  "author": "Jordan Kanter",
+  "license": "ISC"
+}
