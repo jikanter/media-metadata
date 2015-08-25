@@ -30,7 +30,7 @@ var App = function() {
     kind: 0,
     url: "",
     metadata: "",
-    filepath: "",
+    path: "",
     created_at: new Date(),
     updated_at: new Date(),
     size: 0,
@@ -95,8 +95,8 @@ app.DataFields = Object.keys(app.ActiveRecord);
 // This ORM is NOT used for file upload. only for metadata access.
 app.DataAccess = {
   
-  getOne: function() { 
-    return 'SELECT '+app.DataFields.join(',')+' FROM '+app.table+' WHERE ID = ?';
+  getOne: function(id) { 
+    return 'SELECT '+app.DataFields.join(',')+' FROM '+app.table+' WHERE ID = ' + id;
   },
   
   setOne: function(id, fieldName, fieldValue) { 
@@ -183,7 +183,7 @@ http.createServer(function(request, response) {
   
   console.log("routing: " + request.url + ' method: ' + request.method);
   
-  if (request.url == "/m/upload" && request.method.toLowerCase() == 'options') {
+  if ((request.url.indexOf("/m/upload") == 0) && request.method.toLowerCase() == 'options') {
     response.writeHead(501,
       {'Access-Control-Allow-Origin': '*',
        'Access-Control-Allow-Headers': 'X-Requested-With, Content-Type, X-PINGOTHER, X-File-Name, Cache-Control',
@@ -194,7 +194,7 @@ http.createServer(function(request, response) {
   }
   
   // parse the request path and method, and route appropriately
-  if (request.url == "/m/upload" && request.method.toLowerCase() == 'post') { 
+  if ((request.url.indexOf("/m/upload") == 0) && request.method.toLowerCase() == 'post') { 
     
     
     // run our image uploader. 
@@ -266,7 +266,9 @@ http.createServer(function(request, response) {
   // if its a post on the store, parse the params and store the catalog metadata. 
   // we access this method after uploading files
   // we also do it directly to store metadata for URLs directly
-  if (request.url == "/m/store" && request.method.toLowerCase() == 'post') { 
+  else if ((request.url.indexOf("/m/store") == 0) && request.method.toLowerCase() == 'post') { 
+    
+    console.log("posting to store");
     // query does not mean anything for post
     var created_at = Date.now();
     // TODO: timestamp!
@@ -299,16 +301,23 @@ http.createServer(function(request, response) {
           //response.write(302, {'Location': '/'});
         }
       });
+      
+      response.writeHead(302, {
+        'Server': 'Media-Server/0.1',
+        'Location': 'http://dev.pcontact.org/XMPEditor/index.html?finished=true'
+      });
+      response.end();
     });
   }
   
   
-  else if (request.url == "/m/store" && request.method.toLowerCase() == 'get') { 
+  else if ((request.url.indexOf("/m/store") == 0) && request.method.toLowerCase() == 'get') { 
     
+    console.log("GET from store");
     console.log("routing: " + request.url);
     
     var query = url.parse(request.url, true).query; // DUMP || WRITE
-    var id = query.id ? query.id : 1;
+    var id = query.id ? parseInt(query.id) : 1;
     var sql = app.DataAccess.getOne(id);
     app.client.query(sql, function(err, rows) { 
       if (err) { console.log(err); }
@@ -316,23 +325,22 @@ http.createServer(function(request, response) {
         // just write a default response with the metadata
         response.writeHead(200, {
           'Server': 'Media-Server/0.1',
-          'Content-Type': "application/json; charset=utf-8",
+          'Content-Type': 'text/json',
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Headers': 'X-Requested-With, Content-Type, X-PINGOTHER, X-File-Name, Cache-Control',
           'Access-Control-Allow-Methods': 'PUT, POST, GET, OPTIONS'
         });
-  
+        //console.log("ROWS: " + JSON.stringify(rows[0]));
         response.end(JSON.stringify(rows[0]));
       }
     });
-  };
-  
-  response.writeHead(302, {
-    'Server': 'Media-Server/0.1',
-    'Location': 'http://dev.pcontact.org/XMPEditor/index.html?finished=true'
-  });
-  
-  response.end();
-  //response.end(JSON.stringify({'response': 'OK'}));
+  }
+  else { 
+    response.writeHead(302, {
+      'Server': 'Media-Server/0.1',
+      'Location': 'http://dev.pcontact.org/XMPEditor/index.html?finished=true'
+    });
+    response.end();
+  }
   
 }).listen(8127);
