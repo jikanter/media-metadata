@@ -1,4 +1,4 @@
-// deps -> node 0.12.12
+// deps -> node >0.12.12
 var http = require('http');
 var spawn = require('child_process').spawn;
 var qs = require('querystring');
@@ -52,13 +52,11 @@ var App = function() {
 App.Utils = {};
 
 /**
- * 
- * @param {Array} listItems
- * @param {String} joinString
+ * Takes a nested list of two-item lists and returns the list flattened
+ * @param {Array} listItems - The list items to join
+ * @param {String} joinString - The string  to use to join the list items
  * @return {Array}
  * 
- * Takes a nested list of tuples (two-item lists) {listItems} and returns the list flattened
- * by joinString
  */
 App.Utils.flattenListWithJoinString = function(listItems, joinString) {
   
@@ -189,15 +187,16 @@ http.createServer(function(request, response) {
     response.writeHead(501,
       {'Access-Control-Allow-Origin': '*',
        'Access-Control-Allow-Headers': 'X-Requested-With, Content-Type, X-PINGOTHER, X-File-Name, Cache-Control',
-       'Access-Control-Allow-Methods': 'PUT, POST, GET, OPTIONS'});
+       'Access-Control-Allow-Methods': 'DELETE, PUT, POST, GET, OPTIONS'});
      
     response.end("<div>Not implemented</div>");
     
   }
   
+  // parse the request path and method, and route appropriately
   if (request.url == "/m/upload" && request.method.toLowerCase() == 'post') { 
     
-    //console.log("uploading file");
+    
     // run our image uploader. 
     var form = new IncomingForm();
     var files = [];
@@ -316,6 +315,7 @@ http.createServer(function(request, response) {
       else { 
         // just write a default response with the metadata
         response.writeHead(200, {
+          'Server': 'Media-Server/0.1',
           'Content-Type': "application/json; charset=utf-8",
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Headers': 'X-Requested-With, Content-Type, X-PINGOTHER, X-File-Name, Cache-Control',
@@ -328,7 +328,8 @@ http.createServer(function(request, response) {
   };
   
   response.writeHead(302, {
-    'Location': 'http://dev.pcontact.org/XMPEditor/xmpedit.html?finished=true'
+    'Server': 'Media-Server/0.1',
+    'Location': 'http://dev.pcontact.org/XMPEditor/index.html?finished=true'
   });
   
   response.end();
