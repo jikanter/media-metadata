@@ -47,6 +47,8 @@ var App = function() {
     _staticRoot : this._staticRoot,
     _fileRoot: this._fileRoot
   };
+  
+  
 };
 
 App.Utils = {};
@@ -79,6 +81,7 @@ App.Utils.flattenList = function(listItems) {
   return App.Utils.flattenListWithJoinString(listItems);
 };
 
+
 // create the app and the connection to the database
 var app = new App();
 
@@ -110,7 +113,7 @@ app.DataAccess = {
   
   addOne: function(ValueList) { 
     // takes a list of values, appends them together and inserts them into the database
-    return 'INSERT INTO '+app.table+' VALUES ('+ValueList.join(' , ')+')';
+    return 'INSERT INTO ' + app.table + ' VALUES (' + ValueList.join(' , ') + ')';
   }
   
 };
@@ -142,7 +145,23 @@ app.Router = {
   }
 };
 
-app.Event = {};
+
+
+/**
+ * @return {Object}
+ * Compile the routes of the app, returning the router 
+ */
+app.Router.Compile = function() { 
+  var self = this;
+  for (key in app.Router) { 
+    self[key]._compiled = new RegExp(key);
+    self[key]._enabled = true;
+  }
+  return self;
+};
+
+app.Event = {
+};
 
 app.Views = {
   // nmm:ns:crewml -> http://www.newmediameltdown.com/2009/crewml
@@ -173,13 +192,18 @@ app.Views = {
     </head>"
   },
   body: "",
-  foot: ""
+  foot: "",
+  
 };
 
 http.createServer(function(request, response) { 
- 
+  
+  // this needs to be here because the route below emits the event but this
+  // is the route that calls it
+  
   // if it's an upload, parse the file and handle the upload, storing the file metadata
   // in the catalogue
+  
   
   console.log("routing: " + request.url + ' method: ' + request.method);
   
@@ -252,15 +276,13 @@ http.createServer(function(request, response) {
               'Content-Length': payload.length
           }
         });
- 
-        
         req.write(payload);
-          //console.log("Finished");
-      });
-    }
+        });
+      }
     });
     // do the upload and store the data in the catalog
     form.parse(request);
+    console.log("FINISHED");
   } 
   
   // if its a post on the store, parse the params and store the catalog metadata. 
@@ -280,11 +302,12 @@ http.createServer(function(request, response) {
       body += data;
       // 1e6 === 1 * Math.pow(10, 6) === 1 * 1000000 ~~~ 1MB
       if (body.length > 1e20) { 
+        console.log("image too big, aborting");
         request.connection.destroy();
       }
     });
     
-    request.on('end', function() { 
+    request.once('end', function() { 
       // TODO: run the SQL query here..
       var post = qs.parse(body);
       //console.log(util.inspect(post));
@@ -294,22 +317,19 @@ http.createServer(function(request, response) {
       var kind = app.client.escape(post['kind']);
       var fieldData = ['NULL', kind, url, path, '"'+xmpData+'"', created_at, updated_at, xmpData.length, tags];
       var sql = app.DataAccess.addOne(fieldData);
-      //console.log(sql);
+      
+      //console.log("QUERY: " + sql);
+      
       app.client.query(sql, function(err, rows) { 
         if (err) { console.log(err); }
         else { 
-          //response.write(302, {'Location': '/'});
+          console.log("POSTED SUCCESSFULLY");
         }
       });
-      
-      response.writeHead(302, {
-        'Server': 'Media-Server/0.1',
-        'Location': 'http://dev.pcontact.org/XMPEditor/index.html?finished=true'
-      });
-      response.end();
     });
+    
+    
   }
-  
   
   else if ((request.url.indexOf("/m/store") == 0) && request.method.toLowerCase() == 'get') { 
     
@@ -336,11 +356,27 @@ http.createServer(function(request, response) {
     });
   }
   else { 
+    console.log("Last Response");
     response.writeHead(302, {
-      'Server': 'Media-Server/0.1',
-      'Location': 'http://dev.pcontact.org/XMPEditor/index.html?finished=true'
-    });
+          'Server': 'Media-Server/0.1',
+          'Location': 'http://dev.pcontact.org/XMPEditor/index.html?finished=true'
+       });
     response.end();
   }
   
+  // route again once we close, not sure why this is necessary, but we don't want 
+  // to do a redirect unless we are posting
+  request.once('end', function() { 
+    if (((request.url.indexOf("/m/store") == 0) && request.method.toLowerCase() === 'post') || 
+        ((request.url.indexOf("/m/upload") == 0) && request.method.toLowerCase() === 'post')) { 
+       
+       response.writeHead(302, {
+          'Server': 'Media-Server/0.1',
+          'Location': 'http://dev.pcontact.org/XMPEditor/index.html?finished=true'
+       });
+       response.end();
+    }
+  });
+  
 }).listen(8127);
+
